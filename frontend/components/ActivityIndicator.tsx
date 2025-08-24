@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { motion, type HTMLMotionProps } from "framer-motion";
+import { delay, motion, type HTMLMotionProps } from "framer-motion";
 
 const steps = ["Buscando...", "Analizando...", "Filtrando..."];
 
@@ -16,6 +16,9 @@ export function ActivityIndicator({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={{
+        delay: 0.4,
+      }}
     >
       {steps[step]}
     </motion.div>

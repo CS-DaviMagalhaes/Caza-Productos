@@ -55,11 +55,8 @@ export default function HomePage() {
     >
       <Title />
       <SearchBar onSearch={handleSearch} />
-      <ActivityIndicator
-        step={step}
-        className={isSearching ? "block" : "hidden"}
-      />
-      {results.length && <SearchResults results={results} />}
+      {isSearching && results.length == 0 && <ActivityIndicator step={step} />}
+      {results.length > 0 && <SearchResults results={results} />}
     </main>
   );
 }
