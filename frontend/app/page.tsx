@@ -32,14 +32,14 @@ export default function HomePage() {
             name: `Producto relacionado con "${query}"`,
             description: "Descripción breve del producto",
             price: 129.99,
-            imageUrl: "https://via.placeholder.com/150",
+            imageUrl: "https://placehold.co/96",
           },
           {
             id: "2",
             name: "Otro producto interesante",
             description: "Otra descripción breve",
             price: 89.5,
-            imageUrl: "https://via.placeholder.com/150",
+            imageUrl: "https://placehold.co/96",
           },
         ]);
       }
