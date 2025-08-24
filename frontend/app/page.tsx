@@ -11,39 +11,36 @@ export default function HomePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [step, setStep] = useState(0);
   const [results, setResults] = useState<Product[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = (query: string) => {
+  const handleSearch = async (query: string) => {
     if (!query) return;
     setIsSearching(true);
     setStep(0);
     setResults([]);
-
-    // Simulación de proceso de búsqueda
-    let steps = 0;
-    const interval = setInterval(() => {
-      setStep((s) => s + 1);
-      steps++;
-      if (steps > 2) {
-        clearInterval(interval);
-        // Simular resultados
-        setResults([
-          {
-            id: "1",
-            name: `Producto relacionado con "${query}"`,
-            description: "Descripción breve del producto",
-            price: 129.99,
-            imageUrl: "https://placehold.co/96",
-          },
-          {
-            id: "2",
-            name: "Otro producto interesante",
-            description: "Otra descripción breve",
-            price: 89.5,
-            imageUrl: "https://placehold.co/96",
-          },
-        ]);
+    setError(null);
+    try {
+      const res = await fetch("http://localhost:8000/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, country: "pe", numResults: 8 }),
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const err = await res.json();
+          msg = err?.detail || err?.error || msg;
+        } catch {}
+        throw new Error(msg);
       }
-    }, 1000);
+      const data = await res.json();
+      setResults(Array.isArray(data.results) ? data.results : []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error al buscar";
+      setError(msg);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -55,7 +52,10 @@ export default function HomePage() {
     >
       <Title />
       <SearchBar onSearch={handleSearch} />
-      {isSearching && results.length == 0 && <ActivityIndicator step={step} />}
+      {error && <p className="mt-4 text-red-600 text-sm">{error}</p>}
+      {isSearching && results.length === 0 && !error && (
+        <ActivityIndicator step={step} />
+      )}
       {results.length > 0 && <SearchResults results={results} />}
     </main>
   );

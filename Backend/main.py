@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
@@ -7,6 +8,9 @@ import os
 from dotenv import load_dotenv
 import json
 import re
+import asyncio
+from urllib.parse import urlparse
+import httpx
 
 # Cargar variables de entorno
 load_dotenv()
@@ -21,6 +25,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware simple de logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    try:
+        print(f"[REQ] {request.method} {request.url}")
+        response = await call_next(request)
+        print(f"[RES] {request.method} {request.url.path} -> {response.status_code}")
+        return response
+    except Exception as e:
+        # Log y rethrow para que lo capture el handler global
+        print(f"[ERR] {request.method} {request.url.path} -> {e}")
+        raise
+
+# Manejadores globales de errores
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    print(f"[HTTPException] {request.method} {request.url.path} -> {exc.status_code}: {exc.detail}")
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    import traceback
+    tb = traceback.format_exc()
+    print(f"[Exception] {request.method} {request.url.path} -> {exc}\n{tb}")
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 # Función para obtener la API key de OpenAI de diferentes fuentes
 def get_openai_api_key():
@@ -41,12 +71,14 @@ def get_openai_api_key():
 # Inicializar cliente de OpenAI
 openai_api_key = get_openai_api_key()
 client = None
+DEFAULT_OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+SERP_API_KEY = os.getenv("SERP_API_KEY") or os.getenv("serp_api_key")
 
 if openai_api_key:
     client = OpenAI(api_key=openai_api_key)
-    print("✅ Cliente OpenAI inicializado correctamente")
+    print("Cliente OpenAI inicializado correctamente")
 else:
-    print("⚠️ OpenAI API Key no encontrada. Algunas funcionalidades estarán limitadas.")
+    print("OpenAI API Key no encontrada. Algunas funcionalidades estarán limitadas.")
 
 # Modelos Pydantic para la validación de datos
 class ProductoRequest(BaseModel):
@@ -66,6 +98,152 @@ class ProductoResponse(BaseModel):
     links_sellers: List[SellerLink]
     estado: str
     mensaje: str = ""
+
+class SearchRequest(BaseModel):
+    query: str
+    country: str = "pe"
+    numResults: int = 8
+    useReranker: bool | None = None
+    onlyPeDomains: bool | None = None
+
+class SearchItem(BaseModel):
+    id: str
+    name: str
+    description: str
+    price: float
+    imageUrl: str
+    url: str
+
+class SearchResponse(BaseModel):
+    results: List[SearchItem]
+
+
+def _contains_banned_terms(text: str) -> bool:
+    if not text:
+        return False
+    lowered = text.lower()
+    banned_terms = [
+        "404",
+        "notfound",
+        "not-found",
+        "productlinknotfound",
+        "linknotfound",
+        "page-not-found",
+        "no-encontrado",
+        "no_encontrado",
+        "agotado",
+        "out-of-stock",
+        "out_of_stock",
+        "no-disponible",
+        "no_disponible",
+        "producto-no-disponible",
+        "producto_no_disponible",
+        "unavailable",
+    ]
+    return any(term in lowered for term in banned_terms)
+
+
+def _is_allowed_domain(url: str, only_pe: bool) -> bool:
+    if not only_pe:
+        return True
+    try:
+        hostname = urlparse(url).hostname or ""
+        return hostname.endswith(".pe")
+    except Exception:
+        return False
+
+
+async def _head_check_url(client: httpx.AsyncClient, url: str) -> tuple[bool, str]:
+    try:
+        resp = await client.head(url, follow_redirects=True, timeout=5.0)
+        if 200 <= resp.status_code < 400:
+            return True, str(resp.url)
+        if resp.status_code in (405, 403):
+            resp_get = await client.get(url, follow_redirects=True, timeout=6.0)
+            return (200 <= resp_get.status_code < 400), str(resp_get.url)
+        return False, str(resp.url)
+    except Exception:
+        return False, url
+
+
+async def validate_and_filter_urls(candidates: List[dict], only_pe: bool) -> List[dict]:
+    filtered: List[dict] = []
+    prefiltered = []
+    for item in candidates:
+        url = item.get("link") or item.get("url") or ""
+        title = item.get("title") or item.get("name") or ""
+        snippet = item.get("snippet") or item.get("description") or ""
+        if not url or not url.startswith("http"):
+            continue
+        if _contains_banned_terms(url) or _contains_banned_terms(title) or _contains_banned_terms(snippet):
+            continue
+        if not _is_allowed_domain(url, only_pe):
+            continue
+        prefiltered.append({"url": url, "title": title, "snippet": snippet})
+
+    if not prefiltered:
+        return []
+
+    results: List[dict] = []
+    seen_urls: set[str] = set()
+    limits = asyncio.Semaphore(16)
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; CazaProductos/1.0)"}
+    async with httpx.AsyncClient(headers=headers) as async_client:
+        async def check_and_collect(item: dict):
+            url = item["url"]
+            async with limits:
+                ok, final_url = await _head_check_url(async_client, url)
+            if ok:
+                # Re-validar tras redirecciones
+                if _contains_banned_terms(final_url) or not _is_allowed_domain(final_url, only_pe):
+                    return
+                norm_url = final_url
+                if norm_url not in seen_urls:
+                    seen_urls.add(norm_url)
+                    results.append({"url": norm_url, "title": item.get("title", ""), "snippet": item.get("snippet","")})
+
+        await asyncio.gather(*(check_and_collect(i) for i in prefiltered))
+
+    return results
+
+
+async def serpapi_search(query: str, country: str, num_results: int, only_pe: bool) -> List[dict]:
+    if not SERP_API_KEY:
+        return []
+    base_params = {
+        "engine": "google",
+        "q": query,
+        "api_key": SERP_API_KEY,
+        "hl": "es",
+        "gl": country or "pe",
+        "google_domain": "google.com.pe" if (country or "pe") == "pe" else "google.com",
+        "safe": "active",
+    }
+    items: List[dict] = []
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as async_client:
+            starts = [0, 10, 20, 30, 40, 50]
+            for start in starts:
+                params = dict(base_params)
+                params["start"] = start
+                params["num"] = 10
+                resp = await async_client.get("https://serpapi.com/search.json", params=params)
+                data = resp.json()
+                organic = data.get("organic_results") or []
+                for r in organic:
+                    link = r.get("link")
+                    title = r.get("title")
+                    snippet = r.get("snippet")
+                    if link and title:
+                        items.append({"link": link, "title": title, "snippet": snippet})
+                # stop early if we already have a lot of candidates
+                if len(items) >= max(60, num_results * 12):
+                    break
+    except Exception:
+        return []
+
+    cleaned = await validate_and_filter_urls(items, only_pe)
+    return cleaned[: max(num_results, 8)]
 
 class ConfigRequest(BaseModel):
     openai_api_key: str
@@ -201,13 +379,12 @@ async def buscar_producto(request: ProductoRequest):
         
         # Hacer la petición a OpenAI
         response = current_client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-4.1-mini",
             messages=[
                 {"role": "system", "content": system_query},
                 {"role": "user", "content": user_message}
             ],
-            max_completion_tokens=1500,
-            temperature=0.3  # Menos creatividad para URLs más realistas
+            max_tokens=1500
         )
         
         # Extraer la respuesta de OpenAI
@@ -301,21 +478,19 @@ async def consulta_simple(request: dict):
         
         # Consultar OpenAI
         response = current_client.chat.completions.create(
-            model="gpt-5",
+            model=DEFAULT_OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": system_query},
                 {"role": "user", "content": "Analiza estos datos"}
             ],
-            max_completion_tokens=300,
-            temperature=0.5
+            max_tokens=300
         )
-        
+
         return {
             "datos_recibidos": request_copy,  # Sin incluir la API key
             "analisis_openai": response.choices[0].message.content,
             "estado": "exitoso"
         }
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -323,6 +498,60 @@ async def consulta_simple(request: dict):
             status_code=500,
             detail=f"Error en consulta simple: {str(e)}"
         )
+
+@app.post("/api/search", response_model=SearchResponse)
+async def api_search(body: SearchRequest):
+    """
+    Alias compatible con el frontend: recibe { query, country, numResults }
+    y devuelve { results: Array<Product> }.
+    Internamente usa la lógica de /buscar-producto para generar enlaces.
+    """
+    try:
+        # Si hay SERP_API_KEY, usar SerpAPI con filtros y verificación
+        if SERP_API_KEY:
+            serp_items = await serpapi_search(
+                query=body.query,
+                country=body.country or "pe",
+                num_results=body.numResults or 8,
+                only_pe=bool(body.onlyPeDomains) if body.onlyPeDomains is not None else True,
+            )
+            results: List[SearchItem] = []
+            for idx, it in enumerate(serp_items):
+                results.append(SearchItem(
+                    id=str(idx + 1),
+                    name=it.get("title") or "Resultado",
+                    description=it.get("snippet") or it.get("url") or "",
+                    price=0.0,
+                    imageUrl="/vercel.svg",
+                    url=it.get("url") or it.get("link") or ""
+                ))
+            return SearchResponse(results=results)
+
+        # Fallback: usar OpenAI para generar sellers, luego mapear
+        producto_req = ProductoRequest(
+            descripcion_producto=body.query,
+            mensaje=f"Buscar {body.numResults} resultados en {body.country}",
+            contexto="Búsqueda generada desde /api/search"
+        )
+
+        producto_resp = await buscar_producto(producto_req)
+
+        results: List[SearchItem] = []
+        for idx, seller in enumerate(producto_resp.links_sellers):
+            results.append(SearchItem(
+                id=str(idx + 1),
+                name=seller.nombre_tienda or "Tienda",
+                description=seller.descripcion or seller.url,
+                price=0.0,
+                imageUrl="/vercel.svg",
+                url=seller.url or ""
+            ))
+
+        return SearchResponse(results=results)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en /api/search: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
