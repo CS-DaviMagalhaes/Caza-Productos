@@ -46,8 +46,8 @@ export default function HomePage() {
   };
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-6">
-      <Title isSearching={isSearching} />
+    <main className="flex flex-col items-center justify-center min-h-screen p-6 container mx-auto">
+      <Title />
       <SearchBar onSearch={handleSearch} />
       {isSearching && results.length === 0 && <ActivityIndicator step={step} />}
       {results.length > 0 && <SearchResults results={results} />}
