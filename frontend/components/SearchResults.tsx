@@ -1,5 +1,6 @@
 import { Product } from "@/types/product";
 import { ProductCard } from "./ProductCard";
+import { AnimatePresence, motion } from "framer-motion";
 
 export function SearchResults({ results }: { results: Product[] }) {
   if (results.length === 0) {
@@ -11,10 +12,12 @@ export function SearchResults({ results }: { results: Product[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 mt-6">
-      {results.map((product) => (
-        <ProductCard key={product.id} product={product} />
-      ))}
-    </div>
+    <motion.div className="flex flex-col gap-4 mt-6">
+      <AnimatePresence mode="wait">
+        {results.map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </AnimatePresence>
+    </motion.div>
   );
 }
