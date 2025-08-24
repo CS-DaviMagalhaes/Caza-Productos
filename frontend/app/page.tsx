@@ -20,7 +20,7 @@ export default function HomePage() {
     setResults([]);
     setError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/search", {
+      const res = await fetch("http://localhost:8000/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, country: "pe", numResults: 8 }),

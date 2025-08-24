@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
@@ -22,6 +23,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware simple de logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    try:
+        print(f"[REQ] {request.method} {request.url}")
+        response = await call_next(request)
+        print(f"[RES] {request.method} {request.url.path} -> {response.status_code}")
+        return response
+    except Exception as e:
+        # Log y rethrow para que lo capture el handler global
+        print(f"[ERR] {request.method} {request.url.path} -> {e}")
+        raise
+
+# Manejadores globales de errores
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    print(f"[HTTPException] {request.method} {request.url.path} -> {exc.status_code}: {exc.detail}")
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    import traceback
+    tb = traceback.format_exc()
+    print(f"[Exception] {request.method} {request.url.path} -> {exc}\n{tb}")
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+
 # Función para obtener la API key de OpenAI de diferentes fuentes
 def get_openai_api_key():
     """
@@ -41,12 +68,13 @@ def get_openai_api_key():
 # Inicializar cliente de OpenAI
 openai_api_key = get_openai_api_key()
 client = None
+DEFAULT_OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
 if openai_api_key:
     client = OpenAI(api_key=openai_api_key)
-    print("✅ Cliente OpenAI inicializado correctamente")
+    print("Cliente OpenAI inicializado correctamente")
 else:
-    print("⚠️ OpenAI API Key no encontrada. Algunas funcionalidades estarán limitadas.")
+    print("OpenAI API Key no encontrada. Algunas funcionalidades estarán limitadas.")
 
 # Modelos Pydantic para la validación de datos
 class ProductoRequest(BaseModel):
@@ -66,6 +94,24 @@ class ProductoResponse(BaseModel):
     links_sellers: List[SellerLink]
     estado: str
     mensaje: str = ""
+
+class SearchRequest(BaseModel):
+    query: str
+    country: str = "pe"
+    numResults: int = 8
+    useReranker: bool | None = None
+    onlyPeDomains: bool | None = None
+
+class SearchItem(BaseModel):
+    id: str
+    name: str
+    description: str
+    price: float
+    imageUrl: str
+    url: str
+
+class SearchResponse(BaseModel):
+    results: List[SearchItem]
 
 class ConfigRequest(BaseModel):
     openai_api_key: str
@@ -201,13 +247,12 @@ async def buscar_producto(request: ProductoRequest):
         
         # Hacer la petición a OpenAI
         response = current_client.chat.completions.create(
-            model="gpt-5",
+            model=DEFAULT_OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": system_query},
                 {"role": "user", "content": user_message}
             ],
-            max_completion_tokens=1500,
-            temperature=0.3  # Menos creatividad para URLs más realistas
+            max_tokens=1500
         )
         
         # Extraer la respuesta de OpenAI
@@ -301,21 +346,19 @@ async def consulta_simple(request: dict):
         
         # Consultar OpenAI
         response = current_client.chat.completions.create(
-            model="gpt-5",
+            model=DEFAULT_OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": system_query},
                 {"role": "user", "content": "Analiza estos datos"}
             ],
-            max_completion_tokens=300,
-            temperature=0.5
+            max_tokens=300
         )
-        
+
         return {
             "datos_recibidos": request_copy,  # Sin incluir la API key
             "analisis_openai": response.choices[0].message.content,
             "estado": "exitoso"
         }
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -323,6 +366,41 @@ async def consulta_simple(request: dict):
             status_code=500,
             detail=f"Error en consulta simple: {str(e)}"
         )
+
+@app.post("/api/search", response_model=SearchResponse)
+async def api_search(body: SearchRequest):
+    """
+    Alias compatible con el frontend: recibe { query, country, numResults }
+    y devuelve { results: Array<Product> }.
+    Internamente usa la lógica de /buscar-producto para generar enlaces.
+    """
+    try:
+        # Mapear al formato existente de buscar-producto
+        producto_req = ProductoRequest(
+            descripcion_producto=body.query,
+            mensaje=f"Buscar {body.numResults} resultados en {body.country}",
+            contexto="Búsqueda generada desde /api/search"
+        )
+
+        producto_resp = await buscar_producto(producto_req)
+
+        # Convertir los sellers a un arreglo tipo Product consumible por el frontend
+        results: List[SearchItem] = []
+        for idx, seller in enumerate(producto_resp.links_sellers):
+            results.append(SearchItem(
+                id=str(idx + 1),
+                name=seller.nombre_tienda or "Tienda",
+                description=seller.descripcion or seller.url,
+                price=0.0,
+                imageUrl="/vercel.svg",
+                url=seller.url or ""
+            ))
+
+        return SearchResponse(results=results)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en /api/search: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
