@@ -6,6 +6,12 @@ type Product = {
   url: string;
 };
 
+type Section = {
+  id: string;
+  name: string;
+  products: Product[];
+};
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
@@ -15,6 +21,10 @@ export default function Home() {
   const [history, setHistory] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Product[]>([]);
   const [showFav, setShowFav] = useState(false);
+  const [showSections, setShowSections] = useState(false);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [newSectionName, setNewSectionName] = useState("");
+  const [draggedProduct, setDraggedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     const storedHistory = localStorage.getItem("searchHistory");
@@ -23,6 +33,8 @@ export default function Home() {
     if (dark === "true") setDarkMode(true);
     const storedFavs = localStorage.getItem("favorites");
     if (storedFavs) setFavorites(JSON.parse(storedFavs));
+    const storedSections = localStorage.getItem("sections");
+    if (storedSections) setSections(JSON.parse(storedSections));
   }, []);
 
   useEffect(() => {
@@ -34,6 +46,9 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
+  useEffect(() => {
+    localStorage.setItem("sections", JSON.stringify(sections));
+  }, [sections]);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -79,6 +94,34 @@ export default function Home() {
     setHistory(prev => prev.filter(h => h !== item));
   };
 
+  // Secciones personalizadas
+  const addSection = () => {
+    if (!newSectionName.trim()) return;
+    setSections(prev => [
+      ...prev,
+      { id: Date.now().toString(), name: newSectionName.trim(), products: [] },
+    ]);
+    setNewSectionName("");
+  };
+
+  const removeSection = (id: string) => {
+    setSections(prev => prev.filter(s => s.id !== id));
+  };
+
+  // Drag & Drop
+  const onDragStart = (product: Product) => setDraggedProduct(product);
+  const onDropProduct = (sectionId: string) => {
+    if (!draggedProduct) return;
+    setSections(prev =>
+      prev.map(s =>
+        s.id === sectionId && !s.products.some(p => p.url === draggedProduct.url)
+          ? { ...s, products: [...s.products, draggedProduct] }
+          : s
+      )
+    );
+    setDraggedProduct(null);
+  };
+
   const isDark = darkMode;
   const colors = {
     bg: isDark ? "#18181b" : "rgba(255,255,255,0.85)",
@@ -101,6 +144,8 @@ export default function Home() {
     xBtn: isDark ? "#e11d48" : "#b91c1c",
     xBg: isDark ? "#232326" : "#fff",
     favPanelBg: isDark ? "#232326" : "#fff",
+    sectionBg: isDark ? "#232326" : "#f3f4f6",
+    sectionBorder: isDark ? "#6366f1" : "#2563eb",
   };
 
   return (
@@ -144,6 +189,166 @@ export default function Home() {
           pointerEvents: "none",
         }}
       />
+      {/* Menú despegable de secciones personalizadas */}
+      <button
+        onClick={() => setShowSections(s => !s)}
+        style={{
+          position: "fixed",
+          top: 32,
+          left: 32,
+          zIndex: 20,
+          background: colors.button,
+          color: "#fff",
+          border: "none",
+          borderRadius: 24,
+          padding: "10px 22px",
+          fontSize: 17,
+          fontWeight: 600,
+          boxShadow: "0 2px 8px rgba(37,99,235,0.12)",
+          cursor: "pointer",
+          transition: "background 0.2s",
+        }}
+        aria-label="Mostrar secciones"
+      >
+        {showSections ? "Cerrar menú" : "☰ Secciones"}
+      </button>
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: showSections ? 0 : -340,
+          width: 320,
+          height: "100vh",
+          background: colors.sectionBg,
+          boxShadow: showSections ? "4px 0 24px rgba(0,0,0,0.10)" : "none",
+          borderRight: `2px solid ${colors.sectionBorder}`,
+          transition: "left 0.35s cubic-bezier(.4,0,.2,1)",
+          zIndex: 19,
+          padding: "36px 24px 24px 24px",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <h2 style={{ fontWeight: 600, fontSize: 22, marginBottom: 18, color: colors.text }}>
+          Mis Secciones
+        </h2>
+        <div style={{ marginBottom: 16 }}>
+          <input
+            type="text"
+            value={newSectionName}
+            onChange={e => setNewSectionName(e.target.value)}
+            placeholder="Nombre de la sección"
+            style={{
+              padding: 8,
+              borderRadius: 6,
+              border: `1px solid ${colors.border}`,
+              width: "70%",
+              marginRight: 8,
+              background: colors.inputBg,
+              color: colors.text,
+            }}
+          />
+          <button
+            onClick={addSection}
+            style={{
+              padding: "8px 12px",
+              background: colors.button,
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Crear
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {sections.length === 0 ? (
+            <div style={{ color: colors.subText, fontSize: 15 }}>
+              No hay secciones creadas.
+            </div>
+          ) : (
+            sections.map(section => (
+              <div
+                key={section.id}
+                style={{
+                  background: colors.bg,
+                  borderRadius: 8,
+                  marginBottom: 12,
+                  padding: "10px 10px",
+                  border: `1px solid ${colors.sectionBorder}`,
+                }}
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => onDropProduct(section.id)}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600 }}>{section.name}</span>
+                  <button
+                    onClick={() => removeSection(section.id)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: colors.xBtn,
+                      fontSize: 16,
+                      cursor: "pointer",
+                      marginLeft: 8,
+                    }}
+                    title="Eliminar sección"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  {section.products.length === 0 ? (
+                    <span style={{ color: colors.subText, fontSize: 14 }}>
+                      Arrastra aquí productos favoritos
+                    </span>
+                  ) : (
+                    <ul style={{ listStyle: "none", padding: 0 }}>
+                      {section.products.map(product => (
+                        <li
+                          key={product.url}
+                          style={{
+                            background: colors.favBg,
+                            borderRadius: 6,
+                            marginBottom: 6,
+                            padding: "6px 8px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            color: colors.text,
+                            border: `1px solid ${colors.fav}`,
+                          }}
+                        >
+                          <span style={{ fontWeight: 500 }}>{product.name}</span>
+                          <a
+                            href={product.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              background: colors.link,
+                              color: "#fff",
+                              padding: "4px 10px",
+                              borderRadius: 6,
+                              textDecoration: "none",
+                              fontWeight: 500,
+                              fontSize: 13,
+                              marginLeft: 8,
+                            }}
+                          >
+                            Ver
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
       {/* Botón para abrir favoritos */}
       <button
         onClick={() => setShowFav(f => !f)}
@@ -197,6 +402,8 @@ export default function Home() {
             {favorites.map(product => (
               <li
                 key={product.url}
+                draggable
+                onDragStart={() => onDragStart(product)}
                 style={{
                   background: colors.favBg,
                   borderRadius: 8,
@@ -207,6 +414,7 @@ export default function Home() {
                   justifyContent: "space-between",
                   color: colors.text,
                   border: `1px solid ${colors.fav}`,
+                  cursor: "grab",
                 }}
               >
                 <span style={{ fontWeight: 500 }}>{product.name}</span>
