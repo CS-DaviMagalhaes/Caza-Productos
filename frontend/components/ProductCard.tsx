@@ -19,17 +19,10 @@ export function ProductCard({ product }: { product: Product }) {
         <CardTitle className="truncate">{product.name}</CardTitle>
       </CardHeader>
       <CardContent className="flex gap-4">
-        <div className="relative w-24 h-24 flex-shrink-0">
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            sizes="96px"
-            className="object-cover rounded"
-          />
-        </div>
         <div className="min-w-0">
-          <p className="text-sm text-gray-600 line-clamp-3">{product.description}</p>
+          <p className="text-sm text-gray-600 line-clamp-3">
+            {product.description}
+          </p>
           {product.url && (
             <a
               href={product.url}
@@ -41,7 +34,6 @@ export function ProductCard({ product }: { product: Product }) {
               {product.url}
             </a>
           )}
-          <p className="font-bold mt-2">S/ {product.price.toFixed(2)}</p>
         </div>
       </CardContent>
     </Card>

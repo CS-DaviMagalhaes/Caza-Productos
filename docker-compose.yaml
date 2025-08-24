@@ -8,6 +8,8 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+    env_file:
+      - ./frontend/.env # Load environment variables from frontend/.env
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
     networks:
@@ -20,6 +22,8 @@ services:
     container_name: backend
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/.env # Load environment variables from backend/.env
     networks:
       - app-network
 

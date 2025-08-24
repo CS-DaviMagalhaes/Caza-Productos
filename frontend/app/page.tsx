@@ -20,11 +20,16 @@ export default function HomePage() {
     setResults([]);
     setError(null);
     try {
-      const res = await fetch("http://localhost:8000/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, country: "pe", numResults: 8 }),
-      });
+      const res = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+        }/api/search`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, country: "pe", numResults: 8 }),
+        }
+      );
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
         try {
