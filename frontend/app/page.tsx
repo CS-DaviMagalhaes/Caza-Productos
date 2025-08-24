@@ -1,103 +1,129 @@
-import Image from "next/image";
+"use client";
+import React, { useState } from "react";
+
+const mockProducts = [
+  { name: "Producto 1", url: "https://ejemplo.com/producto-1" },
+  { name: "Producto 2", url: "https://ejemplo.com/producto-2" },
+  { name: "Producto 3", url: "https://ejemplo.com/producto-3" },
+];
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<typeof mockProducts>([]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleSearch = () => {
+    const filtered = mockProducts.filter(p =>
+      p.name.toLowerCase().includes(query.toLowerCase())
+    );
+    setResults(filtered);
+  };
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        paddingTop: 60,
+        fontFamily: "Segoe UI, Arial, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+          padding: "32px 40px",
+          minWidth: 350,
+          maxWidth: 400,
+          textAlign: "center",
+        }}
+      >
+        <h1 style={{ fontWeight: 700, fontSize: 28, marginBottom: 16, color: "#222" }}>
+          Caza Productos
+        </h1>
+        <p style={{ color: "#555", marginBottom: 24 }}>
+          Encuentra links de productos similares al que buscas.
+        </p>
+        <input
+          type="text"
+          placeholder="¿Qué producto buscas?"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          style={{
+            padding: 12,
+            marginBottom: 16,
+            width: "100%",
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            fontSize: 16,
+            outline: "none",
+          }}
+        />
+        <button
+          onClick={handleSearch}
+          style={{
+            padding: "12px 0",
+            width: "100%",
+            background: "#2563eb",
+            color: "#fff",
+            fontWeight: 600,
+            border: "none",
+            borderRadius: 8,
+            fontSize: 16,
+            cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(37,99,235,0.08)",
+            transition: "background 0.2s",
+          }}
+        >
+          Buscar
+        </button>
+        <div style={{ marginTop: 32 }}>
+          {results.length > 0 ? (
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {results.map(product => (
+                <li
+                  key={product.url}
+                  style={{
+                    background: "#f3f4f6",
+                    borderRadius: 10,
+                    marginBottom: 16,
+                    padding: "16px 12px",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span style={{ fontWeight: 500, color: "#222" }}>{product.name}</span>
+                  <a
+                    href={product.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      background: "#2563eb",
+                      color: "#fff",
+                      padding: "8px 16px",
+                      borderRadius: 6,
+                      textDecoration: "none",
+                      fontWeight: 500,
+                      fontSize: 15,
+                      marginLeft: 12,
+                      transition: "background 0.2s",
+                    }}
+                  >
+                    Ver
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ color: "#888", fontSize: 15 }}>No hay resultados aún.</p>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    </main>
   );
 }
