@@ -12,7 +12,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
   const [query, setQuery] = useState("");
 
   return (
-    <motion.div layout className="flex gap-2 w-full max-w-lg mx-auto">
+    <motion.div layout className="flex gap-2 w-full">
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}

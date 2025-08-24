@@ -5,6 +5,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { ActivityIndicator } from "@/components/ActivityIndicator";
 import { SearchResults } from "@/components/SearchResults";
 import { Product } from "@/types/product";
+import { cn } from "@/lib/utils";
 
 export default function HomePage() {
   const [isSearching, setIsSearching] = useState(false);
@@ -46,11 +47,19 @@ export default function HomePage() {
   };
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-6 container mx-auto">
+    <main
+      className={cn(
+        "flex flex-col items-center min-h-screen p-6 container mx-auto max-w-4xl min-w-xs",
+        results.length || isSearching ? "justify-start" : "justify-center"
+      )}
+    >
       <Title />
       <SearchBar onSearch={handleSearch} />
-      {isSearching && results.length === 0 && <ActivityIndicator step={step} />}
-      {results.length > 0 && <SearchResults results={results} />}
+      <ActivityIndicator
+        step={step}
+        className={isSearching ? "block" : "hidden"}
+      />
+      {results.length && <SearchResults results={results} />}
     </main>
   );
 }
