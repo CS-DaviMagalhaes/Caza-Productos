@@ -1,0 +1,22 @@
+# Dependencias mínimas sin LangChain (evita conflictos con tiktoken)
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+httpx==0.25.2
+requests==2.31.0
+python-multipart==0.0.6
+
+# OpenAI (versión específica que funciona bien)
+openai==1.35.0
+
+# Utilidades
+loguru==0.7.2
+aiohttp==3.9.1
+
+# Desarrollo y testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+isort==5.12.0
