@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+
+# Virtual environments
+.venv
+env/
+venv/
+
+# Build artifacts
+*.egg-info
+dist/
+build/
+
+# Logs
+*.log
+
+# Local env
+.env
+.env.*
+
+# OS files
+.DS_Store
+
+# VCS
+.git
+.gitignore

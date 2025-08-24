@@ -4,12 +4,13 @@ import { Title } from "@/components/Title";
 import { SearchBar } from "@/components/SearchBar";
 import { ActivityIndicator } from "@/components/ActivityIndicator";
 import { SearchResults } from "@/components/SearchResults";
-import { SearchResult } from "@/types/search";
+import { Product } from "@/types/product";
+import { cn } from "@/lib/utils";
 
 export default function HomePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [step, setStep] = useState(0);
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async (query: string) => {
@@ -43,13 +44,18 @@ export default function HomePage() {
   };
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-6 container mx-auto">
+    <main
+      className={cn(
+        "flex flex-col items-center min-h-screen p-6 container mx-auto max-w-4xl min-w-xs",
+        results.length || isSearching ? "justify-start" : "justify-center"
+      )}
+    >
       <Title />
       <SearchBar onSearch={handleSearch} />
-      {error && (
-        <p className="mt-4 text-red-600 text-sm">{error}</p>
+      {error && <p className="mt-4 text-red-600 text-sm">{error}</p>}
+      {isSearching && results.length === 0 && !error && (
+        <ActivityIndicator step={step} />
       )}
-      {isSearching && results.length === 0 && !error && <ActivityIndicator step={step} />}
       {results.length > 0 && <SearchResults results={results} />}
     </main>
   );
