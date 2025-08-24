@@ -1,10 +1,14 @@
-"use client";
-import { motion } from "framer-motion";
+type TitleProps = {
+  isSearching: boolean;
+};
 
-export function Title() {
+export function Title({ isSearching }: TitleProps) {
   return (
-    <motion.h1 layout className="text-4xl font-bold text-center mb-6">
-      ¿Qué quieres encontrar hoy?
-    </motion.h1>
+    <h1 className="text-4xl font-bold mb-6 text-center">
+      Caza Productos
+      {isSearching && (
+        <span className="ml-2 text-base text-blue-500">Searching...</span>
+      )}
+    </h1>
   );
 }
