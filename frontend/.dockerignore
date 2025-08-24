@@ -1,0 +1,22 @@
+# Ignore node_modules (reinstalled inside container)
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build outputs
+.next
+out
+
+# Local env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS files
+.DS_Store
+
+# VCS
+.git
+.gitignore
