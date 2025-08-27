@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  async rewrites() {
+    return [
+      {
+        source: "/api/search",
+        destination: "http://backend:8000/api/search",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
